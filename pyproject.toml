@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whisp"
+version = "1.0.0"
+description = "Apple Silicon-native command-line audio transcription, powered by MLX Whisper."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Whisp Contributors" }]
+keywords = ["whisper", "transcription", "mlx", "apple-silicon", "speech-to-text", "cli", "srt"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "mlx-whisper>=0.4.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/agilebotanist/whisp"
+Repository = "https://github.com/agilebotanist/whisp"
+
+[project.scripts]
+whisp = "whisp:main"
+
+[tool.setuptools]
+py-modules = ["whisp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
