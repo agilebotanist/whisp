@@ -55,7 +55,7 @@ MODEL_REPOS: dict[str, str] = {
     "large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
     "turbo": "mlx-community/whisper-large-v3-turbo",  # alias
 }
-DEFAULT_MODEL = "large-v3-turbo"
+DEFAULT_MODEL = "small"
 
 
 def iter_input_files(inputs: list[str]) -> Iterable[Path]:

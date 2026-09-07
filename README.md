@@ -8,7 +8,7 @@ Whisp runs [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/wh
 
 - **One command, any input**: individual files, folders (searched recursively), or glob patterns, mixed freely in a single run
 - **Apple Silicon–native**: runs on the GPU via MLX/Metal instead of falling back to the CPU
-- **Latest model by default**: `large-v3-turbo` — near large-v3 accuracy, several times faster
+- **Fast, memory-light default**: `small` — quick even on machines with limited RAM; step up to `large-v3-turbo`/`large-v3` via `--model` when you want maximum accuracy and have the time/memory for it
 - **Language auto-detection**, or force a language (e.g. French) for slightly better accuracy on known content
 - **Two output formats**: a raw as-spoken `.txt` transcript, and optional `.srt` subtitles
 - **Batch-friendly**: continues past per-file errors, prints a summary, exits non-zero if anything failed
@@ -108,7 +108,7 @@ whisp
 | Flag | Description |
 |---|---|
 | `-l, --language <code>` | Force a language (e.g. `fr`, `en`). Omit to auto-detect per file. |
-| `-m, --model <name>` | `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo` (default), or a full `org/repo` id on the Hugging Face Hub. |
+| `-m, --model <name>` | `tiny`, `base`, `small` (default), `medium`, `large-v3`, `large-v3-turbo`, or a full `org/repo` id on the Hugging Face Hub. |
 | `-o, --output-dir <dir>` | Write outputs here instead of next to each source file. |
 | `--srt` | Also generate `.srt` subtitle files. |
 | `-q, --quiet` | Only print errors and the final summary. |
@@ -126,7 +126,7 @@ Three ways to see what a running (or queued) transcription is doing, without int
   1 job(s) running:
 
     Sorbonne 2.m4a
-      [██████████████░░░░░░] 68.4%   32:10 elapsed   model=large-v3-turbo
+      [██████████████░░░░░░] 68.4%   32:10 elapsed   model=small
 
   Run `whisp <files...>` to transcribe. `whisp --help` for all options.
   ```
@@ -159,10 +159,10 @@ Note: the first transcription of any given model downloads it first — there's 
 |---|---|---|---|
 | `tiny` | Fastest | Low | Quick drafts, testing |
 | `base` | Very fast | Fair | Simple audio, speed priority |
-| `small` | Fast | Good | Balanced performance |
+| `small` | Fast | Good | **Default** — quick and light on memory, good everyday accuracy |
 | `medium` | Moderate | Very good | High quality, reasonable speed |
-| `large-v3` | Slower | Best | Maximum accuracy |
-| `large-v3-turbo` | Fast | Near-`large-v3` | **Default** — best speed/accuracy trade-off |
+| `large-v3-turbo` | Fast for its size | Near-`large-v3` | Meaningfully more accurate than `small`, but a much bigger model — needs more memory and time, worth it when accuracy matters more than turnaround |
+| `large-v3` | Slower | Best | Maximum accuracy, most memory/time-hungry |
 
 ## Finder integration
 

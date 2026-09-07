@@ -28,7 +28,7 @@ Intel Macs, Linux, and Windows are explicitly out of scope (see [§6](#6-out-of-
 | FR-4 | The same file is never transcribed twice in one run, even if matched by multiple inputs (e.g. an explicit path and a glob that also matches it). |
 | FR-5 | The tool auto-detects the spoken language by default. A `--language <code>` flag forces a specific language for all files in the run. |
 | FR-6 | The tool selects the Whisper model via `--model`, accepting the short names `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, or any explicit `org/repo` id for advanced use. |
-| FR-7 | The default model is `large-v3-turbo`. |
+| FR-7 | The default model is `small`. |
 | FR-8 | For each transcribed file, the tool writes a `<name>_transcript_raw.txt` file: one line per transcribed segment, in order, with empty segments omitted. |
 | FR-9 | When `--srt` is passed, the tool additionally writes a `<name>.srt` file with sequential subtitle numbering and `HH:MM:SS,mmm` timestamps, per the SRT format. |
 | FR-10 | Output files are written next to each source file by default, or into a single directory when `--output-dir` is given. |

@@ -43,9 +43,11 @@ Alternatives considered:
 | `whisper.cpp` + Core ML | Also Apple-accelerated, but C++ with a Python binding layer to maintain; MLX Whisper is pure Python and lower-friction to depend on. |
 | `openai-whisper` (reference impl) | PyTorch-based; on Mac falls back to CPU or the slower/older MPS backend. Rejected for the same reason as faster-whisper. |
 
-### 2.2 Model: `large-v3-turbo` by default
+### 2.2 Model: `small` by default (reversed from an earlier `large-v3-turbo` default)
 
-`large-v3-turbo` (released by OpenAI in 2024) prunes `large-v3`'s decoder layers, giving several-times-faster decoding for a small, generally imperceptible accuracy cost on non-adversarial audio. It's the better default for an interactive CLI tool; `large-v3` remains available via `--model large-v3` for cases where maximum accuracy matters more than turnaround time.
+This project originally defaulted to `large-v3-turbo`: OpenAI's pruned-decoder variant of `large-v3`, several times faster than the full model for a generally imperceptible accuracy cost. That reasoning was correct as far as it went — turbo genuinely is fast *relative to `large-v3`* — but it turned out to be the wrong comparison. Dogfooding this tool surfaced the real constraint: on a 16GB Mac mini, a single ~2-hour real-world file took over two hours with `large-v3-turbo` and never finished during a full working session, because the machine had under 100MB of free RAM at the time (other running apps — a multi-process browser, an editor — were themselves holding several GB) and swap usage climbed to ~8GB. Apple Silicon's unified memory means GPU compute directly competes with whatever else is resident; "fast" only holds when there's memory headroom for it, which is not a safe assumption for typical everyday hardware running typical everyday other applications.
+
+`small` is the new default because it needs meaningfully less memory and less compute per frame, so it stays fast even without headroom — the scenario that actually broke the previous default. `large-v3-turbo` and `large-v3` remain one flag away (`--model large-v3-turbo`) for anyone who wants to spend the extra time and memory on higher accuracy, ideally on a machine with more RAM to spare or with other applications closed.
 
 Model names are short (`tiny` … `large-v3-turbo`) and mapped internally to the corresponding `mlx-community/...` Hugging Face repo (`MODEL_REPOS` in `whisp.py`), rather than requiring users to know or type full repo ids. A `/` in `--model` is treated as "already a full repo id" and passed straight through — this is the escape hatch for quantized (`-q4`, `-8bit`) or fine-tuned MLX checkpoints without the CLI needing to special-case every variant.
 
