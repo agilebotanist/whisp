@@ -140,6 +140,7 @@ def transcribe_file(
     write_srt_file: bool,
     output_dir: Path | None,
     quiet: bool,
+    verbose: bool = False,
 ) -> None:
     """Transcribe one audio file, writing a raw .txt transcript and optional .srt."""
     dest_dir = output_dir or audio_path.parent
@@ -158,7 +159,7 @@ def transcribe_file(
         temperature=0.0,
         condition_on_previous_text=False,
         word_timestamps=False,
-        verbose=None,
+        verbose=True if verbose else None,
     )
     segments: list[dict] = result.get("segments", [])
 
@@ -201,6 +202,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--srt", action="store_true", help="Also write .srt subtitle files.")
     parser.add_argument("-q", "--quiet", action="store_true", help="Only print errors and the final summary.")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Print each segment as it's transcribed, so long files show live progress.",
+    )
     parser.add_argument("--version", action="version", version=f"whisp {__version__}")
     return parser
 
@@ -221,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             transcribe_file(
                 mlx_whisper, audio, args.model, model_repo,
-                args.language, args.srt, args.output_dir, args.quiet,
+                args.language, args.srt, args.output_dir, args.quiet, args.verbose,
             )
             succeeded += 1
         except Exception as exc:

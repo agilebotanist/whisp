@@ -37,6 +37,7 @@ Intel Macs, Linux, and Windows are explicitly out of scope (see [§6](#6-out-of-
 | FR-13 | The process exit code is `0` only if every file in the run succeeded, and non-zero if the run found no files, was given a bad argument, or any file failed. |
 | FR-14 | `--quiet` suppresses per-file progress output, printing only errors and the final summary. |
 | FR-15 | `--version` prints the installed version and exits; `--help` prints usage and exits. |
+| FR-16 | `--verbose` prints each segment as it is transcribed, giving live progress feedback for long files. |
 
 ## 4. Non-functional requirements
 
@@ -60,7 +61,7 @@ Intel Macs, Linux, and Windows are explicitly out of scope (see [§6](#6-out-of-
 - **Real-time / streaming transcription.** Whisp processes complete audio files, not live audio input.
 - **Speaker diarization** ("who said what").
 - **Translation** (Whisper's translate-to-English mode is not exposed).
-- **A GUI.** The desktop-shortcut instructions in the README wrap the CLI for convenience; they are not a graphical application.
+- **A GUI.** The `automation/` installers (Finder Quick Action, Folder Action, desktop shortcut — see [automation/README.md](automation/README.md)) wrap the CLI for convenience; they are not a graphical application, and none of their logic lives in `whisp.py` itself (DESIGN.md §2.9).
 - **Editing or post-processing transcripts** (punctuation correction, summarization, etc.).
 
 ## 7. Acceptance criteria

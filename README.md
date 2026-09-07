@@ -109,6 +109,7 @@ whisp ~/Voice\ Memos --output-dir ~/Transcripts
 | `-o, --output-dir <dir>` | Write outputs here instead of next to each source file. |
 | `--srt` | Also generate `.srt` subtitle files. |
 | `-q, --quiet` | Only print errors and the final summary. |
+| `-v, --verbose` | Print each segment as it's transcribed — live progress, useful for long files so you can see it's working. |
 | `--version` | Print the installed version and exit. |
 
 **Outputs** (written next to each source file, or into `--output-dir`):
@@ -131,37 +132,83 @@ whisp ~/Voice\ Memos --output-dir ~/Transcripts
 | `large-v3` | Slower | Best | Maximum accuracy |
 | `large-v3-turbo` | Fast | Near-`large-v3` | **Default** — best speed/accuracy trade-off |
 
-## Desktop shortcut (run Whisp on a fixed folder)
+## Finder integration
 
-To transcribe a specific folder (e.g. your Voice Memos exports) by double-clicking an icon instead of opening a terminal:
+Three ways to run Whisp without opening a terminal each time, from most to least "just point and click." Installers for all three are in [automation/](automation/) — see [automation/README.md](automation/README.md) for the full reference; the essentials are below.
 
-1. Find whisp's full path once: `which whisp` (e.g. `/opt/homebrew/bin/whisp` for a pipx/Homebrew install, or `~/.venv/bin/whisp` for a venv install).
-2. Create a file named `Transcribe.command` on your Desktop with:
+### Right-click "Transcribe with Whisp" (Quick Action)
+
+Select one or more audio files (or a folder) in Finder, right-click → **Quick Actions → Transcribe with Whisp**. It runs `whisp <selection> --srt --quiet` on whatever you selected and pops a macOS notification when it starts and again when it's done — no Terminal window opens.
+
+```bash
+automation/install-quick-action.sh     # installs into ~/Library/Services
+automation/uninstall-quick-action.sh   # removes it
+```
+
+**Toggling visibility**: System Settings → Keyboard → Keyboard Shortcuts → Services (or Extensions → Finder), find "Transcribe with Whisp".
+
+<details>
+<summary>Recreate it by hand instead (Automator GUI)</summary>
+
+1. Open **Automator** → **File → New** → choose **Quick Action** → **Choose**.
+2. At the top, set **"Workflow receives current"** to **files or folders**, in **Finder**.
+3. Search the actions library for **Run Shell Script**, drag it into the workflow.
+4. Set **Shell** to `/bin/zsh` and **Pass input** to **as arguments**.
+5. Paste this into the script box (adjust the `PATH` line if `whisp` lives somewhere other than these two locations — check with `which whisp`):
 
    ```bash
-   #!/bin/zsh
-   WHISP="/opt/homebrew/bin/whisp"     # from `which whisp` above
-   FOLDER="$HOME/Voice Memos"           # the folder to transcribe
-
-   "$WHISP" "$FOLDER" --srt
-   echo
-   echo "Done. Press any key to close this window."
-   read -r -k 1
+   export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+   osascript -e 'display notification "Starting…" with title "Whisp"' >/dev/null 2>&1
+   ok=0
+   fail=0
+   for f in "$@"; do
+     if whisp "$f" --srt --quiet; then
+       ok=$((ok+1))
+     else
+       fail=$((fail+1))
+     fi
+   done
+   osascript -e "display notification \"$ok done, $fail failed\" with title \"Whisp\"" >/dev/null 2>&1
    ```
 
-3. Make it executable and double-clickable:
+6. **File → Save**, name it `Transcribe with Whisp`.
 
-   ```bash
-   chmod +x ~/Desktop/Transcribe.command
-   ```
+</details>
 
-4. Double-click `Transcribe.command` in Finder. It opens Terminal, transcribes everything in `FOLDER`, and waits for a keypress before closing.
+### Folder Action (fully automatic — zero clicks)
+
+Watches a chosen folder and transcribes anything *added to it after this point* — existing files are left alone. Output goes to a `Transcripts` subfolder (not the watched folder itself — writing output back into the watched folder would count as a new item and re-trigger the action on itself).
+
+```bash
+automation/install-folder-action.sh ~/Voice\ Memos     # attach to a folder
+automation/uninstall-folder-action.sh ~/Voice\ Memos   # detach
+```
+
+<details>
+<summary>Recreate it by hand instead (Automator GUI)</summary>
+
+1. **Automator → File → New** → **Folder Action** → **Choose**.
+2. Next to **"Folder Action receives files and folders added to"**, pick the folder to watch.
+3. Add **Run Shell Script**, shell `/bin/zsh`, input **as arguments**, and use a script like the Quick Action's above, but add `--output-dir "$1:h"/Transcripts` (or a fixed path) so output doesn't land back in the watched folder.
+4. **File → Save**, name it e.g. `Auto-transcribe Voice Memos`.
+5. Confirm it's active: right-click the watched folder → **Services → Folder Actions Setup…** → make sure **Enable Folder Actions** and the action's own checkbox are both checked.
+
+</details>
+
+### Desktop shortcut (double-click to transcribe one fixed folder)
+
+A `.command` file you double-click, which opens a Terminal window, runs, and shows progress — good when you want to *see* it work rather than get a silent notification. Unlike the Folder Action, it re-transcribes the whole folder on every run, not just what's new.
+
+```bash
+automation/make-desktop-shortcut.sh ~/Voice\ Memos
+# or, with a custom name and flags:
+automation/make-desktop-shortcut.sh ~/Voice\ Memos "Transcribe Voice Memos" -- --srt --verbose
+```
 
 Optional touches:
 
 - **Custom icon**: select the file in Finder → `Cmd+I` → drag an image onto the icon in the top-left of the Get Info panel.
-- **One shortcut per folder**: duplicate the `.command` file and change `FOLDER` for each folder you transcribe regularly.
-- **Drag-and-drop instead of a fixed folder**: an Automator "Quick Action" (Automator → New → Quick Action → *Run Shell Script*, with input set to "files or folders") lets you right-click any folder in Finder and run Whisp on it via `for f in "$@"; do "$WHISP" "$f" --srt; done`.
+- **One shortcut per folder**: run `make-desktop-shortcut.sh` again with a different folder and name.
 
 ## Configuration tips
 
@@ -202,6 +249,9 @@ Aujourd'hui nous allons parler de l'intelligence artificielle.
 ```
 
 ## Troubleshooting
+
+**How do I know it's actually working, on a long file with no output?**
+By default, `whisp` prints a line before and after each file, but nothing during — for a long recording that can look stuck. Add `--verbose` to see each segment printed live as it's transcribed. If you're running through the Finder Quick Action (which uses `--quiet` and shows no Terminal window), the only feedback is the start/done notification — check Activity Monitor for a `whisp`/`Python` process using GPU if you want to confirm it's running. The very first transcription ever also downloads the model first (a one-time delay before any transcription progress begins).
 
 **`whisp requires an Apple Silicon Mac`**
 MLX only runs on Apple Silicon (M1+). There is no supported CPU/Intel/CUDA fallback for this tool.

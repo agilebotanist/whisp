@@ -9,15 +9,18 @@ Whisp is a single-file, Apple Silicon–native CLI tool (`whisp.py`) that transc
 ## Repository layout
 
 ```
-whisp.py           # the entire CLI — file discovery, model resolution, transcription, argparse
-pyproject.toml      # PEP 621 packaging; entry point: whisp = "whisp:main"
-tests/test_whisp.py # unit tests (no GPU/model/network required — backend is injected)
-README.md           # install + usage (human-facing)
+whisp.py             # the entire CLI — file discovery, model resolution, transcription, argparse
+pyproject.toml       # PEP 621 packaging; entry point: whisp = "whisp:main"
+tests/test_whisp.py  # unit tests (no GPU/model/network required — backend is injected)
+automation/          # Finder Quick Action, Folder Action, desktop shortcut installers (shell out to whisp; see automation/README.md)
+README.md            # install + usage (human-facing)
 REQUIREMENTS.md      # functional / non-functional requirements
 DESIGN.md            # architecture + decisions
 ```
 
 There is intentionally no `src/` package — one module, one file. Don't split it into a package unless the tool grows a second major responsibility (see DESIGN.md §1).
+
+`automation/` is not Python and has no test suite — its `.workflow`/`.scpt` formats are undocumented-by-Apple and were reverse-engineered from real system examples, then verified by actually installing and running them (see DESIGN.md §2.9 before touching them). Don't hand-edit the XML/AppleScript there from memory; re-verify against a real example on disk the way DESIGN.md §2.9 describes, and re-run the relevant `automation/install-*.sh` end to end rather than assuming a change is correct.
 
 ## Installation and usage (macOS, Apple Silicon)
 

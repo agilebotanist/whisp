@@ -157,6 +157,20 @@ def test_transcribe_file_writes_raw_transcript(tmp_path: Path):
     assert out_txt.read_text(encoding="utf-8") == "Bonjour tout le monde\nÇa marche bien\n"
     assert not (tmp_path / "clip.srt").exists()
     assert backend.calls[0][1]["path_or_hf_repo"] == "mlx-community/whisper-large-v3-turbo"
+    assert backend.calls[0][1]["verbose"] is None
+
+
+def test_transcribe_file_verbose_forwards_to_backend(tmp_path: Path):
+    audio = tmp_path / "clip.wav"
+    audio.write_bytes(b"")
+    backend = FakeMlxWhisper(make_segments())
+
+    whisp.transcribe_file(
+        backend, audio, "large-v3-turbo", "mlx-community/whisper-large-v3-turbo",
+        language=None, write_srt_file=False, output_dir=None, quiet=True, verbose=True,
+    )
+
+    assert backend.calls[0][1]["verbose"] is True
 
 
 def test_transcribe_file_writes_srt_when_requested(tmp_path: Path):
@@ -242,4 +256,5 @@ def test_parser_defaults():
     assert args.language is None
     assert args.srt is False
     assert args.quiet is False
+    assert args.verbose is False
     assert args.output_dir is None
