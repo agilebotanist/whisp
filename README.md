@@ -8,7 +8,7 @@ Whisp runs [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/wh
 
 - **One command, any input**: individual files, folders (searched recursively), or glob patterns, mixed freely in a single run
 - **Apple Silicon–native**: runs on the GPU via MLX/Metal instead of falling back to the CPU
-- **Fast, memory-light default**: `small` — quick even on machines with limited RAM; step up to `large-v3-turbo`/`large-v3` via `--model` when you want maximum accuracy and have the time/memory for it
+- **Maximum-accuracy default**: `large-v3` — the full model; step down to `medium`/`small`/`base`/`tiny` via `--model` for faster turnaround when accuracy matters less
 - **Language auto-detection**, or force a language (e.g. French) for slightly better accuracy on known content
 - **Two output formats**: a raw as-spoken `.txt` transcript, and optional `.srt` subtitles
 - **Batch-friendly**: continues past per-file errors, prints a summary, exits non-zero if anything failed
@@ -108,7 +108,7 @@ whisp
 | Flag | Description |
 |---|---|
 | `-l, --language <code>` | Force a language (e.g. `fr`, `en`). Omit to auto-detect per file. |
-| `-m, --model <name>` | `tiny`, `base`, `small` (default), `medium`, `large-v3`, `large-v3-turbo`, or a full `org/repo` id on the Hugging Face Hub. |
+| `-m, --model <name>` | `tiny`, `base`, `small`, `medium`, `large-v3` (default), `large-v3-turbo`, or a full `org/repo` id on the Hugging Face Hub. |
 | `-o, --output-dir <dir>` | Write outputs here instead of next to each source file. |
 | `--srt` | Also generate `.srt` subtitle files. |
 | `-q, --quiet` | Only print errors and the final summary. |
@@ -126,7 +126,7 @@ Three ways to see what a running (or queued) transcription is doing, without int
   1 job(s) running:
 
     Sorbonne 2.m4a
-      [██████████████░░░░░░] 68.4%   32:10 elapsed   model=small
+      [██████████████░░░░░░] 68.4%   32:10 elapsed   model=large-v3
 
   Run `whisp <files...>` to transcribe. `whisp --help` for all options.
   ```
@@ -159,10 +159,10 @@ Note: the first transcription of any given model downloads it first — there's 
 |---|---|---|---|
 | `tiny` | Fastest | Low | Quick drafts, testing |
 | `base` | Very fast | Fair | Simple audio, speed priority |
-| `small` | Fast | Good | **Default** — quick and light on memory, good everyday accuracy |
-| `medium` | Moderate | Very good | High quality, reasonable speed |
-| `large-v3-turbo` | Fast for its size | Near-`large-v3` | Meaningfully more accurate than `small`, but a much bigger model — needs more memory and time, worth it when accuracy matters more than turnaround |
-| `large-v3` | Slower | Best | Maximum accuracy, most memory/time-hungry |
+| `small` | Fast | Good | Light on memory, good for constrained machines |
+| `medium` | Moderate | Very good | Good balance if `large-v3`'s time isn't worth it for a given file |
+| `large-v3-turbo` | Fast for its size | Near-`large-v3` | Can behave inconsistently under memory pressure — stalling on a specific window rather than erroring outright; try `medium` if it stalls |
+| `large-v3` | Slowest to start, then fast | Best | **Default** — maximum accuracy. First minute or so can look deceptively slow (model still settling in memory) before speeding up considerably; a ~2-hour file took ~12.5 minutes once past that point in testing |
 
 ## Finder integration
 
@@ -260,7 +260,7 @@ Forcing the language (e.g. `--language fr`) gives slightly better accuracy and s
 
 ### Large batches / limited time
 
-Use `--model small` or `--model medium` to trade some accuracy for speed.
+Use `--model medium` or `--model small` to trade some accuracy for speed.
 
 ## Output format
 
@@ -308,7 +308,7 @@ whisp recording.m4a
 ```
 
 **Out of memory / system feels sluggish on a large batch**
-Switch to a smaller model: `whisp *.m4a --model medium` (or `small`).
+Switch to a smaller model: `whisp *.m4a --model medium` (or `small`/`base`/`tiny` for more headroom). `large-v3-turbo` in particular can behave inconsistently under memory pressure — stalling on a specific window rather than erroring outright; see the model table above. The default `large-v3` can also look deceptively slow for the first minute before settling into a much faster pace.
 
 ## Further reading
 

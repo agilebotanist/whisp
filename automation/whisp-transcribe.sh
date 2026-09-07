@@ -46,10 +46,29 @@ echo "$FILE" > "$QUEUE_DIR/$$.txt"
 # mkdir is atomic on a POSIX filesystem, so this is a safe cross-process
 # mutex with no extra dependency (flock isn't shipped on macOS). Whoever's
 # mkdir succeeds owns the lock; everyone else polls until it's free.
+#
+# The EXIT trap below is the normal release path, but it isn't the only
+# one: a holder killed (not just exited normally) can leave the lock
+# directory behind without the trap firing — observed for real, not
+# hypothetical, when a wrapper process was killed while blocked waiting on
+# its own whisp child. Without a backstop, every future run would then
+# spin-wait on `mkdir` forever against a lock nobody will ever release. So
+# the holder's pid is recorded inside the lock, and anyone failing to
+# acquire it checks whether that pid is still alive; if not, the lock is
+# stale and gets reclaimed rather than waited on indefinitely.
+LOCK_PID_FILE="$LOCK_DIR/pid"
 while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    if [[ -f "$LOCK_PID_FILE" ]]; then
+        holder_pid="$(cat "$LOCK_PID_FILE" 2>/dev/null || true)"
+        if [[ -n "$holder_pid" ]] && ! kill -0 "$holder_pid" 2>/dev/null; then
+            rm -rf "$LOCK_DIR"  # holder is dead; reclaim rather than wait forever
+            continue
+        fi
+    fi
     sleep 2
 done
+echo $$ > "$LOCK_PID_FILE"
 rm -f "$QUEUE_DIR/$$.txt"
-trap 'rmdir "$LOCK_DIR"' EXIT
+trap 'rm -rf "$LOCK_DIR"' EXIT
 
 whisp "$FILE" "$@"
