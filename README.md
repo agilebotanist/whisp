@@ -136,6 +136,8 @@ whisp ~/Voice\ Memos --output-dir ~/Transcripts
 
 Three ways to run Whisp without opening a terminal each time, from most to least "just point and click." Installers for all three are in [automation/](automation/) — see [automation/README.md](automation/README.md) for the full reference; the essentials are below.
 
+The Quick Action and Folder Action share a locking helper: if you trigger a second transcription while the first is still running (e.g. dropping two files a few minutes apart), it queues instead of running alongside the first — two `whisp` processes at once would each load their own copy of the model into GPU memory and slow each other down.
+
 ### Right-click "Transcribe with Whisp" (Quick Action)
 
 Select one or more audio files (or a folder) in Finder, right-click → **Quick Actions → Transcribe with Whisp**. It runs `whisp <selection> --srt --quiet` on whatever you selected and pops a macOS notification when it starts and again when it's done — no Terminal window opens.
@@ -149,6 +151,8 @@ automation/uninstall-quick-action.sh   # removes it
 
 <details>
 <summary>Recreate it by hand instead (Automator GUI)</summary>
+
+This version calls `whisp` directly, so it skips the queuing behavior described above — two triggered at once really will run concurrently. Run `automation/install-quick-action.sh` instead if you want that.
 
 1. Open **Automator** → **File → New** → choose **Quick Action** → **Choose**.
 2. At the top, set **"Workflow receives current"** to **files or folders**, in **Finder**.
@@ -186,6 +190,8 @@ automation/uninstall-folder-action.sh ~/Voice\ Memos   # detach
 
 <details>
 <summary>Recreate it by hand instead (Automator GUI)</summary>
+
+This version calls `whisp` directly, so it skips the queuing behavior described above. Run `automation/install-folder-action.sh` instead if you want that.
 
 1. **Automator → File → New** → **Folder Action** → **Choose**.
 2. Next to **"Folder Action receives files and folders added to"**, pick the folder to watch.

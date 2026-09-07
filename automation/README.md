@@ -4,6 +4,14 @@ Installable macOS integrations that wrap the `whisp` CLI, so you don't have to o
 
 All of these require `whisp` to already be installed and on `PATH` (`pipx install .` from the repo root — see the main README). They resolve its location automatically at install time; if you later move or reinstall `whisp` somewhere else, just re-run the relevant install script.
 
+## Concurrency: triggers queue, they don't pile up
+
+The Quick Action and Folder Action both run transcriptions through `whisp-transcribe.sh`, a shared wrapper (installed to `~/Library/Application Support/Whisp/`) that holds a simple cross-process lock (an atomic `mkdir`-based mutex — macOS doesn't ship `flock`) before calling `whisp`. If you drop a second file while the first is still transcribing — from the Quick Action, the Folder Action, or a mix of both — the second one waits its turn instead of starting immediately.
+
+This matters because `mlx_whisper` loads its own copy of the model into GPU memory per process, with no cross-process cache sharing: two `whisp` processes running at once roughly doubles memory pressure and makes both slower by contending for the same GPU, rather than actually running in parallel. Verified directly: a synthetic test with a stand-in `whisp` confirmed zero overlap (second job's start time was exactly the first job's end time, not earlier), and a real end-to-end run through the installed Folder Action showed sequential, non-overlapping completion times for two files triggered a second apart.
+
+`install-quick-action.sh` and `install-folder-action.sh` both install/update this shared helper automatically — you don't need to do anything extra to get this behavior.
+
 ## Right-click Quick Action
 
 ```bash
@@ -13,7 +21,7 @@ automation/uninstall-quick-action.sh   # removes
 
 Installs `Transcribe with Whisp.workflow` into `~/Library/Services`. Right-click any audio file or folder in Finder → **Quick Actions → Transcribe with Whisp**. Runs silently (`--srt --quiet`) with a "starting" and a "done" notification — no Terminal window.
 
-The `.workflow` bundle here is a template: its script has a `__WHISP_BIN_DIR__` placeholder that the install script substitutes with your actual `whisp` location (Quick Actions run in a bare shell that never sources `.zshrc`, so a plain `whisp` command name alone wouldn't resolve).
+The `.workflow` bundle here is a template: its script has a `__WHISP_HELPER__` placeholder that the install script substitutes with the installed helper's actual path (Quick Actions run in a bare shell that never sources `.zshrc`, so a plain `whisp` command name alone wouldn't resolve).
 
 ## Folder Action (zero-click, auto-transcribe on drop)
 
@@ -24,7 +32,9 @@ automation/uninstall-folder-action.sh <folder>   # detach
 
 Watches `<folder>` and transcribes any audio file added to it — no click at all, just drop the file in. Implemented as a compiled AppleScript (`Auto-transcribe.applescript` → `.scpt`), the traditional Folder Actions mechanism, attached via `System Events`. Output goes to `<folder>/Transcripts`, not `<folder>` itself — writing output back into the watched folder would count as a new item and re-trigger the action on itself.
 
-Only affects files added *after* installation; anything already in the folder when you attach it is left alone. Safe to attach to multiple folders — they share one compiled script.
+Only affects files added *after* installation; anything already in the folder when you attach it is left alone. Safe to attach to multiple folders — they share one compiled script (and the same lock, so a burst of files across *different* watched folders still queues rather than piling up).
+
+`install-folder-action.sh`'s attach step occasionally fails its own verification on the very first attempt against a brand-new folder (a `System Events` timing hiccup, not a real failure — it happened once during testing) and exits with a clear error rather than silently leaving a broken half-attached state. Just re-run it; it's idempotent.
 
 ## Desktop shortcut (double-click, fixed folder)
 
@@ -38,10 +48,11 @@ Generates a double-clickable `.command` file on your Desktop that opens Terminal
 automation/make-desktop-shortcut.sh ~/Voice\ Memos "Transcribe Voice Memos" -- --srt --verbose
 ```
 
-Unlike the other two, this one re-runs on the whole folder every time you double-click it — it doesn't track what it already transcribed, so repeated runs on a growing folder will re-transcribe everything, not just what's new.
+Unlike the other two, this one calls `whisp` directly rather than through the shared helper — it's a single foreground process launched by a double-click, so there's nothing to serialize against. It also re-runs on the whole folder every time you double-click it — it doesn't track what it already transcribed, so repeated runs on a growing folder will re-transcribe everything, not just what's new.
 
 ## Notes for maintainers
 
 - Every script here is idempotent and safe to re-run.
-- All three were verified end-to-end on real hardware while building them (real Quick Action registration confirmed via `com.apple.ServicesMenu.Services`, real Folder Action attach/detach via `System Events`, real transcription output produced in each case) — not just written and assumed to work.
+- All three were verified end-to-end on real hardware while building them (real Quick Action registration confirmed via `com.apple.ServicesMenu.Services`, real Folder Action attach/detach via `System Events`, real transcription output produced in each case, real serialization confirmed via non-overlapping completion timestamps) — not just written and assumed to work.
 - The `Transcribe with Whisp.workflow` and `Auto-transcribe.applescript` schemas were reverse-engineered from real Apple-shipped examples (`/System/Library/Services/Encode Selected Audio Files.workflow`, `/System/Library/PrivateFrameworks/FolderActionsKit.framework`), not guessed from memory.
+- `lib.sh` is sourced (not executed) by both install scripts — it holds the shared "resolve whisp's location" and "install/update the locking helper" logic so it isn't duplicated and can't drift between the two installers.
