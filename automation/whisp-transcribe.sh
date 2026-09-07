@@ -31,8 +31,17 @@ if [[ "${1:-}" == "--" ]]; then
     shift
 fi
 
-LOCK_DIR="$HOME/Library/Application Support/Whisp/lock"
-mkdir -p "$(dirname "$LOCK_DIR")"
+STATE_DIR="$HOME/Library/Application Support/Whisp"
+LOCK_DIR="$STATE_DIR/lock"
+QUEUE_DIR="$STATE_DIR/queue"
+mkdir -p "$STATE_DIR" "$QUEUE_DIR"
+
+# While waiting on the lock, record what we're waiting to process — `whisp`
+# with no arguments reads this directory to show queued (not yet started)
+# jobs alongside actively running ones. Keyed by our own pid, same as the
+# lock: if we're killed before acquiring it, whisp's dashboard treats a
+# marker whose pid is no longer alive as stale and removes it.
+echo "$FILE" > "$QUEUE_DIR/$$.txt"
 
 # mkdir is atomic on a POSIX filesystem, so this is a safe cross-process
 # mutex with no extra dependency (flock isn't shipped on macOS). Whoever's
@@ -40,6 +49,7 @@ mkdir -p "$(dirname "$LOCK_DIR")"
 while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     sleep 2
 done
+rm -f "$QUEUE_DIR/$$.txt"
 trap 'rmdir "$LOCK_DIR"' EXIT
 
 whisp "$FILE" "$@"

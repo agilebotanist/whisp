@@ -12,6 +12,8 @@ This matters because `mlx_whisper` loads its own copy of the model into GPU memo
 
 `install-quick-action.sh` and `install-folder-action.sh` both install/update this shared helper automatically — you don't need to do anything extra to get this behavior.
 
+While a file is waiting for its turn, `whisp-transcribe.sh` writes a marker to `~/Library/Application Support/Whisp/queue/` — this is what makes it show up under "queued" when you run `whisp` with no arguments (see the main README's [Checking progress](../README.md#checking-progress)) alongside anything actually running. That marker (and the lock itself) is keyed by the waiting process's own pid, so if it's killed before its turn comes up, the dashboard notices the pid is gone and cleans up the stale entry rather than showing a phantom queued job forever.
+
 ## Right-click Quick Action
 
 ```bash
@@ -56,3 +58,4 @@ Unlike the other two, this one calls `whisp` directly rather than through the sh
 - All three were verified end-to-end on real hardware while building them (real Quick Action registration confirmed via `com.apple.ServicesMenu.Services`, real Folder Action attach/detach via `System Events`, real transcription output produced in each case, real serialization confirmed via non-overlapping completion timestamps) — not just written and assumed to work.
 - The `Transcribe with Whisp.workflow` and `Auto-transcribe.applescript` schemas were reverse-engineered from real Apple-shipped examples (`/System/Library/Services/Encode Selected Audio Files.workflow`, `/System/Library/PrivateFrameworks/FolderActionsKit.framework`), not guessed from memory.
 - `lib.sh` is sourced (not executed) by both install scripts — it holds the shared "resolve whisp's location" and "install/update the locking helper" logic so it isn't duplicated and can't drift between the two installers.
+- The `queue/<pid>.txt` marker files `whisp-transcribe.sh` writes must use the exact path `~/Library/Application Support/Whisp/queue` — `whisp.py`'s `QUEUE_DIR` constant is the other half of this contract, and the two aren't otherwise linked in code. If either side's path ever changes, the other needs to change with it.

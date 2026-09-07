@@ -98,6 +98,9 @@ whisp quick-note.m4a --model small
 
 # Send outputs to a specific folder instead of next to the source files
 whisp ~/Voice\ Memos --output-dir ~/Transcripts
+
+# No files: show whatever's currently running (see "Checking progress" below)
+whisp
 ```
 
 **Options**:
@@ -109,8 +112,37 @@ whisp ~/Voice\ Memos --output-dir ~/Transcripts
 | `-o, --output-dir <dir>` | Write outputs here instead of next to each source file. |
 | `--srt` | Also generate `.srt` subtitle files. |
 | `-q, --quiet` | Only print errors and the final summary. |
-| `-v, --verbose` | Print each segment as it's transcribed — live progress, useful for long files so you can see it's working. |
+| `-v, --verbose` | Print a live position/percent line while transcribing, so long files show they're progressing. |
 | `--version` | Print the installed version and exit. |
+
+## Checking progress
+
+Three ways to see what a running (or queued) transcription is doing, without interrupting it:
+
+- **`whisp` with no arguments** shows every currently running or queued job, machine-wide — across every terminal, the Quick Action, and the Folder Action alike:
+
+  ```text
+  $ whisp
+  1 job(s) running:
+
+    Sorbonne 2.m4a
+      [██████████████░░░░░░] 68.4%   32:10 elapsed   model=large-v3-turbo
+
+  Run `whisp <files...>` to transcribe. `whisp --help` for all options.
+  ```
+
+- **`--verbose`** prints a live `position / total (percent%)` line in the terminal you launched it from.
+- **A per-file progress log**, `<name>_progress.log`, is written next to each file's eventual output for the duration of that file's transcription (removed once it's done) — `tail -f` it from another terminal to watch it update in real time:
+
+  ```bash
+  tail -f "Sorbonne 2_progress.log"
+  ```
+
+  This is the one to reach for when you kicked something off through the Quick Action or Folder Action (both run with `--quiet`, no Terminal window) and want to check on it after the fact.
+
+All three read from the same underlying progress tracking, so they always agree. The percentage is real — computed from the actual audio position mlx_whisper has reached (via its own internal progress counter), not a time-based guess — so accuracy doesn't depend on knowing this machine's throughput in advance.
+
+Note: the first transcription of any given model downloads it first — there's no progress signal during that one-time download, only once decoding actually starts.
 
 **Outputs** (written next to each source file, or into `--output-dir`):
 
@@ -257,7 +289,10 @@ Aujourd'hui nous allons parler de l'intelligence artificielle.
 ## Troubleshooting
 
 **How do I know it's actually working, on a long file with no output?**
-By default, `whisp` prints a line before and after each file, but nothing during — for a long recording that can look stuck. Add `--verbose` to see each segment printed live as it's transcribed. If you're running through the Finder Quick Action (which uses `--quiet` and shows no Terminal window), the only feedback is the start/done notification — check Activity Monitor for a `whisp`/`Python` process using GPU if you want to confirm it's running. The very first transcription ever also downloads the model first (a one-time delay before any transcription progress begins).
+See [Checking progress](#checking-progress) above — run `whisp` with no arguments from any terminal, or `tail -f` the `_progress.log` file next to where the output will land. The very first transcription of a given model also downloads it first — there's no progress signal during that one-time download, only once decoding actually starts.
+
+**`--quiet` still prints some download/progress noise**
+`--quiet` suppresses whisp's own messages, but mlx_whisper's internal model-download and decoding progress bars write directly to the terminal and aren't currently suppressed by it — a known cosmetic gap. Harmless, and irrelevant when running through the Quick Action or Folder Action (no Terminal window either way).
 
 **`whisp requires an Apple Silicon Mac`**
 MLX only runs on Apple Silicon (M1+). There is no supported CPU/Intel/CUDA fallback for this tool.

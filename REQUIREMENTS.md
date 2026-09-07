@@ -37,7 +37,10 @@ Intel Macs, Linux, and Windows are explicitly out of scope (see [§6](#6-out-of-
 | FR-13 | The process exit code is `0` only if every file in the run succeeded, and non-zero if the run found no files, was given a bad argument, or any file failed. |
 | FR-14 | `--quiet` suppresses per-file progress output, printing only errors and the final summary. |
 | FR-15 | `--version` prints the installed version and exits; `--help` prints usage and exits. |
-| FR-16 | `--verbose` prints each segment as it is transcribed, giving live progress feedback for long files. |
+| FR-16 | `--verbose` prints a live position/percent line while a file is transcribing. |
+| FR-17 | Invoking the tool with zero file arguments shows every whisp job currently running or queued (across all terminals and the Finder automations), each with model, elapsed time, and percent complete where determinable — instead of an error. |
+| FR-18 | While transcribing, a `<name>_progress.log` file is maintained next to where that file's output will land, with a timestamped line per progress update; removed once that file's transcription finishes (success or failure). |
+| FR-19 | Percent-complete, wherever shown (dashboard, `--verbose`, the progress log), is computed from the audio decoder's actual position, not estimated from elapsed time and an assumed throughput. |
 
 ## 4. Non-functional requirements
 
