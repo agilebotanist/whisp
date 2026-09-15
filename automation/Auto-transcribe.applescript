@@ -20,10 +20,12 @@
 -- To change the whisp flags used (e.g. drop --srt, add --language fr), edit
 -- the shellCmd line below and re-run the install script.
 on adding folder items to thisFolder after receiving addedItems
-	set outDir to (POSIX path of thisFolder) & "Transcripts"
+	set pPath to POSIX path of thisFolder
+	if pPath does not end with "/" then set pPath to pPath & "/"
+	set outDir to pPath & "Transcripts"
 	repeat with anItem in addedItems
 		set posixPath to POSIX path of anItem
-		set shellCmd to "\"__WHISP_HELPER__\" " & quoted form of posixPath & " -- --srt --quiet --output-dir " & quoted form of outDir & " >/dev/null 2>&1; osascript -e 'display notification \"Transcription finished\" with title \"Whisp\"' >/dev/null 2>&1 &"
+		set shellCmd to "( \"__WHISP_HELPER__\" " & quoted form of posixPath & " -- --srt --quiet --output-dir " & quoted form of outDir & " ; osascript -e 'display notification \"Transcription finished\" with title \"Whisp\"' ) >/dev/null 2>&1 &"
 		do shell script shellCmd
 	end repeat
 end adding folder items to
