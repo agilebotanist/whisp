@@ -178,6 +178,48 @@ def test_transcribe_file_writes_raw_transcript(tmp_path: Path):
     assert backend.calls[0][1]["verbose"] is False
 
 
+def test_transcribe_file_skips_mixed_language_refinement_by_default(tmp_path: Path, monkeypatch):
+    """_refine_mixed_language() reaches into real mlx_whisper internals (ModelHolder,
+    detect_language, mel spectrogram) that FakeMlxWhisper doesn't provide, so it must
+    stay opt-in behind --experimental-mixed-language rather than running by default."""
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("_refine_mixed_language must not run unless mixed_language=True")
+    monkeypatch.setattr(whisp, "_refine_mixed_language", fail_if_called)
+
+    audio = tmp_path / "clip.wav"
+    audio.write_bytes(b"")
+    backend = FakeMlxWhisper(make_segments())
+
+    whisp.transcribe_file(
+        backend, audio, "large-v3-turbo", "mlx-community/whisper-large-v3-turbo",
+        language=None, write_srt_file=False, output_dir=None, quiet=True,
+    )
+
+
+def test_transcribe_file_runs_mixed_language_refinement_when_requested(tmp_path: Path, monkeypatch):
+    calls = []
+
+    def fake_refine(mlx_whisper, audio_path, model_repo, result, candidates):
+        calls.append((audio_path, model_repo, candidates))
+        return result
+
+    monkeypatch.setattr(whisp, "_refine_mixed_language", fake_refine)
+
+    audio = tmp_path / "clip.wav"
+    audio.write_bytes(b"")
+    backend = FakeMlxWhisper(make_segments())
+
+    whisp.transcribe_file(
+        backend, audio, "large-v3-turbo", "mlx-community/whisper-large-v3-turbo",
+        language=None, write_srt_file=False, output_dir=None, quiet=True,
+        mixed_language=True,
+    )
+
+    assert len(calls) == 1
+    assert calls[0][0] == audio
+    assert calls[0][2] == whisp.AUTO_DETECT_LANGUAGES
+
+
 def test_transcribe_file_verbose_prints_progress_and_cleans_up_log(tmp_path: Path, capsys):
     audio = tmp_path / "clip.wav"
     audio.write_bytes(b"")
@@ -279,11 +321,17 @@ def test_parser_defaults():
     assert args.quiet is False
     assert args.verbose is False
     assert args.output_dir is None
+    assert args.experimental_mixed_language is False
 
 
 def test_parser_accepts_zero_inputs():
     args = whisp.build_parser().parse_args([])
     assert args.inputs == []
+
+
+def test_parser_accepts_experimental_mixed_language_flag():
+    args = whisp.build_parser().parse_args(["clip.wav", "--experimental-mixed-language"])
+    assert args.experimental_mixed_language is True
 
 
 # --- probe_duration ----------------------------------------------------

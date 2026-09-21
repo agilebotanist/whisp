@@ -113,6 +113,7 @@ whisp
 | `--srt` | Also generate `.srt` subtitle files. |
 | `-q, --quiet` | Only print errors and the final summary. |
 | `-v, --verbose` | Print a live position/percent line while transcribing, so long files show they're progressing. |
+| `--experimental-mixed-language` | **Experimental.** Re-checks language every ~30s against the whole-file pick and re-decodes any block that disagrees — for files that switch between French and English mid-recording (e.g. a French lecture quoting English-language text). Only re-decodes blocks that actually disagree, but the per-block check itself runs for every file, so expect a real slowdown, worse on files with little/no code-switching (where it finds nothing to fix). See [DESIGN.md §2.8c](DESIGN.md#28c-experimental-mixed-language-per-block-language-refinement). |
 | `--version` | Print the installed version and exit. |
 
 ## Checking progress
@@ -252,7 +253,9 @@ Optional touches:
 
 ### Mixed-language content
 
-Omit `--language` to auto-detect per segment — recommended for recordings that switch languages.
+Omit `--language` to auto-detect per file — recommended for recordings that switch languages. Auto-detect is restricted to French/English (see `AUTO_DETECT_LANGUAGES` in `whisp.py`); it re-checks and picks the more confident of the two if the initial guess lands outside that pair, rather than trusting an unrestricted guess. Pass `--language` to bypass this entirely and force a specific language, including one outside that pair.
+
+For a file that switches *within itself* — e.g. a French lecture quoting English-language text — the above still decodes the whole file in one language. Add `--experimental-mixed-language` to re-decode the blocks that don't match (see above).
 
 ### Single-language content
 

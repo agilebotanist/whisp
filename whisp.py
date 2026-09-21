@@ -57,6 +57,23 @@ MODEL_REPOS: dict[str, str] = {
 }
 DEFAULT_MODEL = "large-v3"
 
+# Unrestricted auto-detect picks from ~100 languages off up to 30s of audio;
+# a noisy/ambiguous opening can make it commit to something implausible (seen
+# in practice: a French lecture opening misdetected as Welsh, then decoded
+# start-to-finish in Welsh). This user's material is always French or English
+# (course recordings with occasional English-language quotes), so when
+# auto-detect (no explicit --language) lands outside this pair, re-transcribe
+# forcing each candidate and keep the one with the higher mean segment
+# avg_logprob, rather than trusting a 1-of-100 guess. Only engages on that
+# escape case — the common already-correct detection costs nothing extra.
+AUTO_DETECT_LANGUAGES = ("fr", "en")
+
+# --experimental-mixed-language block size: 30s is Whisper's own encoder
+# context window (N_FRAMES / FRAMES_PER_SECOND in mlx_whisper.audio), not an
+# arbitrary choice -- it's the largest span a single detect_language() call
+# is meaningful over.
+MIXED_LANGUAGE_BLOCK_SECONDS = 30.0
+
 
 def iter_input_files(inputs: list[str]) -> Iterable[Path]:
     """Expand files, folders, and glob patterns into unique audio file paths."""
@@ -279,6 +296,120 @@ def load_backend():
     return mlx_whisper
 
 
+def _transcribe_best_of_languages(mlx_whisper, audio_path: Path, model_repo: str, candidates: tuple[str, ...]) -> dict:
+    """Force-decode once per candidate language, keep the most confident result.
+
+    Confidence is each result's mean segment avg_logprob (Whisper's own per-
+    segment log-probability, higher/less-negative = more confident) over
+    non-blank segments; a result with none is treated as maximally unlikely.
+    """
+    best_result: dict | None = None
+    best_score = float("-inf")
+    for candidate in candidates:
+        result = mlx_whisper.transcribe(
+            str(audio_path),
+            path_or_hf_repo=model_repo,
+            language=candidate,
+            temperature=0.0,
+            condition_on_previous_text=False,
+            word_timestamps=False,
+            verbose=False,
+        )
+        segments = [s for s in result.get("segments", []) if s.get("text", "").strip()]
+        if segments:
+            score = sum(s.get("avg_logprob", float("-inf")) for s in segments) / len(segments)
+        else:
+            score = float("-inf")
+        if score > best_score:
+            best_score = score
+            best_result = result
+    return best_result
+
+
+def _refine_mixed_language(mlx_whisper, audio_path: Path, model_repo: str, result: dict, candidates: tuple[str, ...]) -> dict:
+    """EXPERIMENTAL (--experimental-mixed-language): re-check language on Whisper's
+    own segment boundaries and re-decode any block that disagrees with the
+    whole-file pick, so a quote in the "other" language within an otherwise
+    single-language file gets decoded in its actual language instead of
+    forced through the file's dominant one.
+
+    Blocks are grouped from `result`'s own segments (never split mid-segment,
+    so this never introduces the mid-sentence cuts a naive fixed-interval
+    chop would), and the per-block language check re-derives mlx_whisper's
+    ModelHolder / detect_language / mel-spectrogram machinery directly
+    (private, undocumented, version-fragile -- verified against the actually
+    installed mlx_whisper 0.4.3, see DESIGN.md) since there's no supported
+    public API for "what language is *this* stretch of audio". A block whose
+    check disagrees is re-decoded through the same public
+    transcribe(..., clip_timestamps=...) call used everywhere else in this
+    file, so segment building, timestamps, and hallucination/threshold
+    handling for the actual text stay entirely mlx_whisper's, untouched.
+    """
+    import mlx.core as mx
+
+    segments: list[dict] = result.get("segments", [])
+    if not segments:
+        return result
+
+    transcribe_module = sys.modules.get("mlx_whisper.transcribe")
+    if transcribe_module is None:
+        import importlib
+        transcribe_module = importlib.import_module("mlx_whisper.transcribe")
+    dtype = mx.float16
+    model = transcribe_module.ModelHolder.get_model(model_repo, dtype)
+
+    waveform = mlx_whisper.audio.load_audio(str(audio_path))
+    sample_rate = mlx_whisper.audio.SAMPLE_RATE
+
+    blocks: list[list[dict]] = []
+    current: list[dict] = []
+    block_start = segments[0]["start"]
+    for seg in segments:
+        current.append(seg)
+        if seg["end"] - block_start >= MIXED_LANGUAGE_BLOCK_SECONDS:
+            blocks.append(current)
+            current = []
+            block_start = seg["end"]
+    if current:
+        blocks.append(current)
+
+    whole_file_language = result.get("language")
+    patched_segments: list[dict] = []
+    replaced_any = False
+    for block in blocks:
+        start, end = block[0]["start"], block[-1]["end"]
+        clip = waveform[int(start * sample_rate):int(end * sample_rate)]
+        mel = mlx_whisper.audio.log_mel_spectrogram(clip, n_mels=model.dims.n_mels, padding=mlx_whisper.audio.N_SAMPLES)
+        mel_segment = mlx_whisper.audio.pad_or_trim(mel, mlx_whisper.audio.N_FRAMES, axis=-2).astype(dtype)
+        _, probs = model.detect_language(mel_segment)
+        block_language = max(candidates, key=lambda c: probs.get(c, float("-inf")))
+
+        if block_language == whole_file_language:
+            patched_segments.extend(block)
+            continue
+
+        replaced_any = True
+        patch = mlx_whisper.transcribe(
+            str(audio_path),
+            path_or_hf_repo=model_repo,
+            language=block_language,
+            temperature=0.0,
+            condition_on_previous_text=False,
+            word_timestamps=False,
+            verbose=False,
+            clip_timestamps=f"{start},{end}",
+        )
+        patched_segments.extend(patch.get("segments", []))
+
+    if not replaced_any:
+        return result
+
+    result = dict(result)
+    result["segments"] = patched_segments
+    result["text"] = " ".join(s["text"].strip() for s in patched_segments if s.get("text", "").strip())
+    return result
+
+
 def transcribe_file(
     mlx_whisper,
     audio_path: Path,
@@ -289,6 +420,7 @@ def transcribe_file(
     output_dir: Path | None,
     quiet: bool,
     verbose: bool = False,
+    mixed_language: bool = False,
 ) -> None:
     """Transcribe one audio file, writing a raw .txt transcript and optional .srt."""
     dest_dir = output_dir or audio_path.parent
@@ -325,7 +457,7 @@ def transcribe_file(
             # verbose=False (not None/True) is what enables mlx_whisper's own
             # internal tqdm progress bar, which is what makes frame_progress()
             # able to observe live position — see DESIGN.md §2.9's follow-up.
-            outcome["result"] = mlx_whisper.transcribe(
+            result = mlx_whisper.transcribe(
                 str(audio_path),
                 path_or_hf_repo=model_repo,
                 language=language,
@@ -334,6 +466,11 @@ def transcribe_file(
                 word_timestamps=False,
                 verbose=False,
             )
+            if language is None and result.get("language") not in AUTO_DETECT_LANGUAGES:
+                result = _transcribe_best_of_languages(mlx_whisper, audio_path, model_repo, AUTO_DETECT_LANGUAGES)
+            if mixed_language:
+                result = _refine_mixed_language(mlx_whisper, audio_path, model_repo, result, AUTO_DETECT_LANGUAGES)
+            outcome["result"] = result
         except Exception as exc:  # re-raised on the calling thread, below
             outcome["error"] = exc
 
@@ -417,6 +554,14 @@ def build_parser() -> argparse.ArgumentParser:
         "-v", "--verbose", action="store_true",
         help="Print a live position/percent line while transcribing long files.",
     )
+    parser.add_argument(
+        "--experimental-mixed-language", action="store_true",
+        help="EXPERIMENTAL: re-check language every ~30s against the whole-file pick "
+             f"(candidates: {', '.join(AUTO_DETECT_LANGUAGES)}) and re-decode any block "
+             "that disagrees, for files that switch language mid-recording. Roughly "
+             "doubles the language-check cost per file; only re-decodes blocks that "
+             "actually disagree.",
+    )
     parser.add_argument("--version", action="version", version=f"whisp {__version__}")
     return parser
 
@@ -443,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
                 transcribe_file(
                     mlx_whisper, audio, args.model, model_repo,
                     args.language, args.srt, args.output_dir, args.quiet, args.verbose,
+                    mixed_language=args.experimental_mixed_language,
                 )
                 succeeded += 1
             except Exception as exc:

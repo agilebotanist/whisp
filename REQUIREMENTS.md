@@ -26,7 +26,7 @@ Intel Macs, Linux, and Windows are explicitly out of scope (see [§6](#6-out-of-
 | FR-2 | `<inputs>` accepts, in any combination: individual audio file paths, directory paths (searched recursively), and shell glob patterns (e.g. `*.m4a`, `**/*.wav`). |
 | FR-3 | Only files with a supported extension are transcribed; unsupported files are reported and skipped, not treated as errors. |
 | FR-4 | The same file is never transcribed twice in one run, even if matched by multiple inputs (e.g. an explicit path and a glob that also matches it). |
-| FR-5 | The tool auto-detects the spoken language by default. A `--language <code>` flag forces a specific language for all files in the run. |
+| FR-5 | The tool auto-detects the spoken language by default, constrained to French/English (`AUTO_DETECT_LANGUAGES` in `whisp.py`) — if unrestricted detection lands outside that pair, the file is re-decoded once per candidate and the more confident result is kept. A `--language <code>` flag bypasses auto-detect entirely, forcing that language for all files in the run. |
 | FR-6 | The tool selects the Whisper model via `--model`, accepting the short names `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, or any explicit `org/repo` id for advanced use. |
 | FR-7 | The default model is `large-v3`. |
 | FR-8 | For each transcribed file, the tool writes a `<name>_transcript_raw.txt` file: one line per transcribed segment, in order, with empty segments omitted. |
@@ -41,6 +41,7 @@ Intel Macs, Linux, and Windows are explicitly out of scope (see [§6](#6-out-of-
 | FR-17 | Invoking the tool with zero file arguments shows every whisp job currently running or queued (across all terminals and the Finder automations), each with model, elapsed time, and percent complete where determinable — instead of an error. |
 | FR-18 | While transcribing, a `<name>_progress.log` file is maintained next to where that file's output will land, with a timestamped line per progress update; removed once that file's transcription finishes (success or failure). |
 | FR-19 | Percent-complete, wherever shown (dashboard, `--verbose`, the progress log), is computed from the audio decoder's actual position, not estimated from elapsed time and an assumed throughput. |
+| FR-20 | **Experimental.** `--experimental-mixed-language` re-checks language on ~30-second blocks (aligned to Whisper's own segment boundaries) against the whole-file pick, and re-decodes any block whose language disagrees, for files that switch between French and English mid-recording. Off by default; opt-in only. |
 
 ## 4. Non-functional requirements
 
