@@ -7,7 +7,7 @@ name = "whisp"
 version = "1.0.0"
 description = "Apple Silicon-native command-line audio transcription, powered by MLX Whisper."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Whisp Contributors" }]
 keywords = ["whisper", "transcription", "mlx", "apple-silicon", "speech-to-text", "cli", "srt"]
